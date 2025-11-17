@@ -241,9 +241,7 @@ def main():
     
     # Example usage - update these paths to your actual resume files
     sample_files = [
-        './resumes/sample_resume_1.docx',
-        './resumes/sample_resume_1.pdf',
-        './resumes/sample_resume_2.docx',
+        r"C:\Users\Y NANI\Downloads\images\naniyamali__resume.pdf"
     ]
     
     print("\n" + "="*70)
