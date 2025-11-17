@@ -18,7 +18,7 @@ A Python-based NLP tool for extracting structured information from resumes using
 
 📄 **Supported Formats:**
 - DOCX (Microsoft Word)
-- PDF (Portable Document Format)
+- PDF (Portable Document Format) - with PyMuPDF for reliable text extraction
 
 🔍 **Smart Parsing:**
 - Uses spaCy NLP for accurate entity recognition
@@ -96,13 +96,13 @@ Resume-Parser/
 - python-docx >= 0.8.10
 - pandas >= 1.0.0
 - docx2txt >= 0.8
-- PyPDF2 >= 3.0.0 (for PDF support)
+- PyMuPDF >= 1.23.0 (for reliable PDF support)
 
 See `requirements.txt` for complete list.
 
 ## How It Works
 
-1. **File Conversion** - Converts DOCX/PDF to plain text
+1. **File Conversion** - Converts DOCX/PDF to plain text using PyMuPDF for PDFs
 2. **Tokenization** - Uses spaCy to tokenize and process text
 3. **Section Detection** - Identifies resume sections using keyword matching
 4. **Entity Extraction** - Extracts specific information using pattern matching
@@ -142,7 +142,6 @@ Edit regex patterns in `ResumeParser.py` `MatchEvent` class to match different:
 
 - ⚠️ **Language**: English only
 - ⚠️ **Phone**: US format only
-- ⚠️ **PDF**: Text extraction depends on PDF structure
 - ⚠️ **Pattern Matching**: Limited to configured patterns
 
 ## Future Improvements
@@ -157,11 +156,14 @@ Edit regex patterns in `ResumeParser.py` `MatchEvent` class to match different:
 
 ## Troubleshooting
 
+**Issue**: No text extracted from PDF resume
+- **Solution**: Verify PDF is text-based (not scanned image). PyMuPDF works best with standard PDFs.
+
 **Issue**: No text extracted from resume
 - **Solution**: Verify resume has clear section headers matching `section_title.csv`
 
-**Issue**: PDF support error
-- **Solution**: Install PyPDF2: `pip install PyPDF2`
+**Issue**: PyMuPDF import error
+- **Solution**: Install PyMuPDF: `pip install PyMuPDF` or `pip install pymupdf`
 
 **Issue**: spaCy model not found
 - **Solution**: Download model: `python -m spacy download en_core_web_sm`

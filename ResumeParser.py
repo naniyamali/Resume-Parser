@@ -1,14 +1,14 @@
-import docx2txt
 import spacy
 import re
 import pandas as pd
+import pymupdf
 from spacy.matcher import PhraseMatcher
 from spacy.matcher import Matcher
 from spacy.tokens import Span
 import os
 
 try:
-    import PyPDF2
+    import pymupdf
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
@@ -102,22 +102,26 @@ class ResumeParser:
     PROFILE_INFORMATION = {}
 
     def __init__(self, file_name):
-        self.txt = self.convert_docx2txt(file_name)
+        self.txt = self.get_ttext(file_name)
+        # ensure SECTION_INFO_FILE resolves relative to this file
+        if not os.path.isabs(self.SECTION_INFO_FILE):
+            self.SECTION_INFO_FILE = os.path.join(os.path.dirname(__file__), self.SECTION_INFO_FILE)
+
         self.doc = ResumeParser.nlp(self.txt)
-        self.matcher = Matcher(self.nlp.vocab, validate=True)
+        self.matcher = Matcher(self.doc.vocab, validate=True)
         self.section_data = self.load_data(self.doc)
 
     # Converting Docx/PDF to txt
-    def convert_docx2txt(self, file_name):
+    def get_ttext(self, file_name):
         """
-        Convert DOCX or PDF file to plain text.
-        
+        Convert a PDF file to plain text. This parser is configured for PDF-only input.
+
         Args:
-            file_name: Path to DOCX or PDF file
-            
+            file_name: Path to PDF file
+
         Returns:
             Extracted text as string
-            
+
         Raises:
             FileNotFoundError: If file doesn't exist
             ValueError: If file format is not supported or extraction fails
@@ -128,31 +132,45 @@ class ResumeParser:
             
             file_ext = os.path.splitext(file_name)[1].lower()
             
-            if file_ext == '.docx':
-                temp = docx2txt.process(file_name)
-                if not temp:
-                    raise ValueError(f"No text extracted from {file_name}")
-                return temp
-            
-            elif file_ext == '.pdf':
-                if not PDF_SUPPORT:
-                    raise ValueError("PDF support requires PyPDF2. Install with: pip install PyPDF2")
-                
-                text = ""
+            if file_ext != '.pdf':
+                raise ValueError(f"Unsupported file format: {file_ext}. This parser accepts only .pdf files")
+
+            # handle PDF
+            global PDF_SUPPORT
+
+            if not PDF_SUPPORT:
+                # Try to import at runtime; if still missing, attempt to install into this interpreter.
                 try:
-                    with open(file_name, 'rb') as file:
-                        pdf_reader = PyPDF2.PdfReader(file)
-                        for page in pdf_reader.pages:
-                            text += page.extract_text()
-                except Exception as e:
-                    raise ValueError(f"Error reading PDF: {str(e)}")
-                
-                if not text:
-                    raise ValueError(f"No text extracted from PDF: {file_name}")
-                return text
+                    import importlib
+                    pymupdf = importlib.import_module('pymupdf')
+                    PDF_SUPPORT = True
+                except ImportError:
+                    # Attempt to install into the active interpreter
+                    try:
+                        import sys
+                        import subprocess
+                        print("PyMuPDF not found in this environment. Attempting to install into the active interpreter...")
+                        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'PyMuPDF'])
+                        import importlib
+                        pymupdf = importlib.import_module('pymupdf')
+                        PDF_SUPPORT = True
+                    except Exception as ie:
+                        raise ValueError("PDF support requires PyMuPDF. Automatic install failed. Please install manually with: python -m pip install PyMuPDF") from ie
+
+            text = ""
+            try:
+                pdf_document = pymupdf.open(file_name)
+                for page in pdf_document:
+                    page_text = page.get_text()
+                    if page_text:
+                        text += page_text
+                pdf_document.close()
+            except Exception as e:
+                raise ValueError(f"Error reading PDF: {str(e)}")
             
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}. Supported: .docx, .pdf")
+            if not text:
+                raise ValueError(f"No text extracted from PDF: {file_name}")
+            return text
         
         except Exception as e:
             raise Exception(f"Error converting {file_name} to text: {str(e)}")
