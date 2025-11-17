@@ -5,8 +5,13 @@ import pandas as pd
 from spacy.matcher import PhraseMatcher
 from spacy.matcher import Matcher
 from spacy.tokens import Span
+import os
 
-# PHONE_NO_PATTERN = re.compile(r"(\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}|\(\d{3}\)\s*\d{3}[-\.\s]??\d{4}|\d{3}[-\.\s]??\d{4}[\s]+)")
+try:
+    import PyPDF2
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
 
 class MatchEvent:
     PERSON_PATTERN      = [{'POS': 'PROPN', 'ENT_TYPE': 'PERSON'},
@@ -80,12 +85,55 @@ class ResumeParser:
         self.matcher = Matcher(self.nlp.vocab, validate=True)
         self.section_data = self.load_data(self.doc)
 
-    # Converting Docx to txt using docx2txt
+    # Converting Docx/PDF to txt
     def convert_docx2txt(self, file_name):
-        temp = docx2txt.process(file_name)
-        #text = [line.replace('\t', ' ') for line in temp.split('\n') if line]
-        #return ' '.join(temp)
-        return temp
+        """
+        Convert DOCX or PDF file to plain text.
+        
+        Args:
+            file_name: Path to DOCX or PDF file
+            
+        Returns:
+            Extracted text as string
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If file format is not supported or extraction fails
+        """
+        try:
+            if not os.path.exists(file_name):
+                raise FileNotFoundError(f"File not found: {file_name}")
+            
+            file_ext = os.path.splitext(file_name)[1].lower()
+            
+            if file_ext == '.docx':
+                temp = docx2txt.process(file_name)
+                if not temp:
+                    raise ValueError(f"No text extracted from {file_name}")
+                return temp
+            
+            elif file_ext == '.pdf':
+                if not PDF_SUPPORT:
+                    raise ValueError("PDF support requires PyPDF2. Install with: pip install PyPDF2")
+                
+                text = ""
+                try:
+                    with open(file_name, 'rb') as file:
+                        pdf_reader = PyPDF2.PdfReader(file)
+                        for page in pdf_reader.pages:
+                            text += page.extract_text()
+                except Exception as e:
+                    raise ValueError(f"Error reading PDF: {str(e)}")
+                
+                if not text:
+                    raise ValueError(f"No text extracted from PDF: {file_name}")
+                return text
+            
+            else:
+                raise ValueError(f"Unsupported file format: {file_ext}. Supported: .docx, .pdf")
+        
+        except Exception as e:
+            raise Exception(f"Error converting {file_name} to text: {str(e)}")
 
     def load_data(self, data):
         section_dict = pd.read_csv(self.SECTION_INFO_FILE)
@@ -162,15 +210,52 @@ class ResumeParser:
 
 
 def main():
-    rp = ResumeParser('./Sample Data/Christina_Austin_BA.docx')
-    print(rp.parse_information())
-    rp = ResumeParser('./Sample Data/Deepak Kumar_Business Analyst_PM-NC.docx')
-    print(rp.parse_information())
-    rp = ResumeParser('./Sample Data/Manish_ARORA_Profile.docx')
-    print(rp.parse_information())
+    """
+    Main function to demonstrate resume parsing.
+    
+    Supports both DOCX and PDF formats.
+    Note: Update file paths to point to your actual resume files.
+    """
+    
+    # Example usage - update these paths to your actual resume files
+    sample_files = [
+        './resumes/sample_resume_1.docx',
+        './resumes/sample_resume_1.pdf',
+        './resumes/sample_resume_2.docx',
+    ]
+    
+    print("\n" + "="*70)
+    print("RESUME PARSER - EXTRACTION DEMO")
+    print("="*70)
+    
+    for resume_file in sample_files:
+        if os.path.exists(resume_file):
+            try:
+                print(f"\n{'='*70}")
+                print(f"Parsing: {resume_file}")
+                print('='*70)
+                rp = ResumeParser(resume_file)
+                result = rp.parse_information()
+                print("\nExtracted Information:")
+                for key, value in result.items():
+                    if isinstance(value, dict):
+                        print(f"\n{key}:")
+                        for k, v in value.items():
+                            print(f"  {k}: {v}")
+                    elif isinstance(value, list):
+                        print(f"\n{key}:")
+                        for i, item in enumerate(value, 1):
+                            print(f"  {i}. {str(item)[:80]}...")
+                    else:
+                        print(f"\n{key}: {str(value)[:100]}...")
+            except Exception as e:
+                print(f"ERROR: {str(e)}")
+        else:
+            print(f"⚠ File not found: {resume_file}")
 
 
-main()
+if __name__ == '__main__':
+    main()
 
 '''
     def get_basicinfo(self):
