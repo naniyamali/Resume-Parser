@@ -136,14 +136,13 @@ class ResumeParser:
                 raise ValueError(f"Unsupported file format: {file_ext}. This parser accepts only .pdf files")
 
             # handle PDF
-            global PDF_SUPPORT
-
+            import importlib
+            pdf_lib = None
+            
             if not PDF_SUPPORT:
                 # Try to import at runtime; if still missing, attempt to install into this interpreter.
                 try:
-                    import importlib
-                    pymupdf = importlib.import_module('pymupdf')
-                    PDF_SUPPORT = True
+                    pdf_lib = importlib.import_module('pymupdf')
                 except ImportError:
                     # Attempt to install into the active interpreter
                     try:
@@ -151,15 +150,15 @@ class ResumeParser:
                         import subprocess
                         print("PyMuPDF not found in this environment. Attempting to install into the active interpreter...")
                         subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'PyMuPDF'])
-                        import importlib
-                        pymupdf = importlib.import_module('pymupdf')
-                        PDF_SUPPORT = True
+                        pdf_lib = importlib.import_module('pymupdf')
                     except Exception as ie:
                         raise ValueError("PDF support requires PyMuPDF. Automatic install failed. Please install manually with: python -m pip install PyMuPDF") from ie
+            else:
+                pdf_lib = pymupdf
 
             text = ""
             try:
-                pdf_document = pymupdf.open(file_name)
+                pdf_document = pdf_lib.open(file_name)
                 for page in pdf_document:
                     page_text = page.get_text()
                     if page_text:
@@ -181,7 +180,7 @@ class ResumeParser:
         matcher = PhraseMatcher(self.nlp.vocab)
         for section in self.SECTION_TITLE[1:]:
             section_words[section] = [self.nlp(text) for text in section_dict[section].dropna(axis=0)]
-            matcher.add(section, None, *section_words[section])
+            matcher.add(section, section_words[section])
 
         section_data = {}
         matches = matcher(data)
@@ -212,7 +211,7 @@ class ResumeParser:
 
         # Adding all the patterns to the Matcher to retrieve the corresponding details
         for index, info in enumerate(ResumeParser.CANDIDATE_INFO):
-            self.matcher.add(info['id'], info['match_on'], info['pattern'])
+            self.matcher.add(info['id'], [info['pattern']], greedy='LONGEST')
             candidate_info_details[info['id']] = 'Null'
 
         # Extracting the details from document text
@@ -244,8 +243,15 @@ class ResumeParser:
 
     def parse_information(self):
         details = self.get_candidate_info(self.SECTION_TITLE[0])
-        details.update(self.get_summary_text(self.SECTION_TITLE[1]))
-        details.update(self.get_work_experience(self.SECTION_TITLE[3]))
+        
+        # Add summary text if it exists
+        if self.SECTION_TITLE[1] in self.section_data:
+            details.update(self.get_summary_text(self.SECTION_TITLE[1]))
+        
+        # Add work experience if it exists
+        if self.SECTION_TITLE[3] in self.section_data:
+            details.update(self.get_work_experience(self.SECTION_TITLE[3]))
+        
         return details
 
 
