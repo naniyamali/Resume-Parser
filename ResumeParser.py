@@ -62,7 +62,29 @@ class MatchEvent:
 
 class ResumeParser:
 
-    nlp = spacy.load("en_core_web_sm")
+    @staticmethod
+    def _load_spacy_model(name="en_core_web_sm"):
+        """Load a spaCy model, downloading it into the current interpreter if missing.
+
+        This helps when the project is opened in a different Python environment (for
+        example PyCharm using a different interpreter) where the model hasn't been
+        installed yet.
+        """
+        try:
+            return spacy.load(name)
+        except OSError:
+            # Try to download the model into the active interpreter and retry
+            try:
+                from spacy.cli import download
+                print(f"spaCy model '{name}' not found in this environment - downloading now...")
+                download(name)
+                return spacy.load(name)
+            except Exception as e:
+                # re-raise with a clearer message
+                raise OSError(f"Failed to load or download spaCy model '{name}': {e}")
+
+    # load model using a safe loader (this runs at import / class-definition time)
+    nlp = _load_spacy_model.__func__()
 
     CANDIDATE_INFO = [{'id': 'FullName',    'match_on': MatchEvent.full_name_event, 'pattern': MatchEvent.PERSON_PATTERN},
                       {'id': 'Email',       'match_on': None,                       'pattern': MatchEvent.EMAIL_ID_PATTERN},
